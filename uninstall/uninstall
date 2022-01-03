@@ -1,4 +1,4 @@
-echo "<INFO> Stopping MQTT Gateway service"
+echo "<INFO> Stopping Bestway Lazy-Spa service"
 pkill bestway.pl
 
 # Exit with Status 0
