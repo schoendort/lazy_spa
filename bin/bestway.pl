@@ -18,38 +18,41 @@ my $mqtt = Net::MQTT::Simple->new("$mqttConfig->{brokeraddress}");
 
 $mqtt->login($mqttConfig->{brokeruser}, $mqttConfig->{brokerpass});
 
-LOGSTART "Bestway Lazy-Spa plugin started";
 
-LOGINF "$lbplogdir + $lbpconfigdir";
 
 my $cfgfile = "$lbpconfigdir/config.json";
 
 my $log = LoxBerry::Log->new (
     name => 'Bestway Lazy-Spa',
 	filename => "$lbplogdir/lazyspa.log",
-	append => 1,
-	stdout => 1
+	append => 0,
+	stdout => 1,
+	addtime => 1
 );
 
-
+LOGSTART "Bestway Lazy-Spa plugin started";
 
 my $jsonobj = LoxBerry::JSON->new();
-my $cfg = $jsonobj->open(filename => $cfgfile );
+my $cfg = $jsonobj->open(filename => $cfgfile);
+
+my $lastUpdate = 0;
 
 $mqtt->subscribe("bestway/set", \&received);
 
 while(1){
 	$mqtt->tick();
 	if(!$cfg->{mail} or !$cfg->{password}){
-		LOGWARN "missing configuration";
+		LOGWARN "missing configuration, read file again";
+		$jsonobj = LoxBerry::JSON->new();
+		$cfg = $jsonobj->open(filename => $cfgfile);
 	}elsif(!$cfg->{token}){
-		getToken();
+		eval { getToken() };
 	}elsif(!$cfg->{deviceId}){
-		getDeviceId();
+		eval { getDeviceId() };
 	}else{
-		LOGINF "have everything, fine";
-		getCurrentState();
+		eval { getCurrentState()} ;
 	}	
+	LOGINF "I'm alive";
 	Time::HiRes::sleep(10);
 }
 
@@ -59,8 +62,8 @@ sub getToken{
 	my $request = HTTP::Request->new(POST => 'https://euapi.gizwits.com/app/login');
 	$request->header('Content-Type' => 'application/json');
 	$request->header('X-Gizwits-Application-Id' => '98754e684ec045528b073876c34c7348');
-	$request->content("{ \"username\": \"$cfg->{mail}\", \"password\": \"$cfg->{mail}\", \"lang\": \"en\" }");
-
+	$request->content("{ \"username\": \"$cfg->{mail}\", \"password\": \"$cfg->{password}\", \"lang\": \"en\" }");
+	
 	my $ua = LWP::UserAgent->new;
 	my $response = $ua->request($request);	
 	if($response->is_success){
@@ -71,8 +74,7 @@ sub getToken{
 		$cfg->{token} = $fromjson->{'token'};
 		$jsonobj->write();
 	}else{
-		 die $response->status_line;
-		LOGERR "Token request was not successful";
+		LOGERR "Token request was not successful $response->status_line";
 	}
 }
 
@@ -108,15 +110,19 @@ sub getCurrentState(){
 		my $message = $response->decoded_content;
 		LOGINF "Received reply: $message\n\n\n";
 		my $fromjson = from_json($message);
-		foreach my $attr (keys %{$fromjson->{attr}} ){
-			if($attr ne 'temp_set_unit'){
-				LOGINF "published";
-				$mqtt->retain("bestway/$attr", $fromjson->{attr}->{$attr});
+		my $currentUpdate = $fromjson->{updated_at};
+		if($currentUpdate > $lastUpdate){
+			LOGINF "values are newer, publish to mqtt. $lastUpdate < $currentUpdate";
+			foreach my $attr (keys %{$fromjson->{attr}} ){
+				if($attr ne 'temp_set_unit'){
+					LOGINF "published";
+					$mqtt->retain("bestway/$attr", $fromjson->{attr}->{$attr});
+				}
 			}
 		}
+		$lastUpdate = $currentUpdate;
 	}else{
-		die $response->status_line;
-		LOGERR "Token request was not successful";
+		LOGERR "state request was not successful $response->status_line";
 	}
 }
 
@@ -134,11 +140,9 @@ sub received
 	my $ua = LWP::UserAgent->new;
 	my $response = $ua->request($request);
 	if($response->is_success){
-		LOGINF "everything fine :)";
-		getCurrentState();
+		eval { getCurrentState() };
 	}else{
-		 die $response->status_line;
-		LOGERR "Token request was not successful";
+		LOGERR "Set attribute request was not successful $response->status_line";
 	}
 }
 
