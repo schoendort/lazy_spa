@@ -1,8 +1,28 @@
-<p><TMPL_VAR BASIC.WELCOME></p>
-<p><TMPL_VAR BASIC.SAMPLEPLUGIN_HINT></p>
-<p><TMPL_VAR BASIC.SAMPLEPLUGIN_BESTPRACTISE></p>
+<h1><TMPL_VAR HEADER.TITLE></h1>
+<br>
+<from id="form">
+<label>E-Mail:</label>
+<input id="mail" type="text" value="<TMPL_VAR NAME="MAIL">"/><br>
+<label><TMPL_VAR TEXT.PASSWORD></label>
+<input id="pass" type="password" value="<TMPL_VAR NAME="PASS">"/><br>
+<input id="save" type="button" value="<TMPL_VAR TEXT.SAVE>"/>	
+</form>
 
-<!-- The following variable shows a selectbox that was generated in the cgi script -->
-<TMPL_VAR ACTIVATED>
-<p><TMPL_VAR FOOTER.GREETING></p>
+<script>
+	$("#save").click(function(){
+		var json = "{\"mail\":\""+document.getElementById("mail").value+"\",\"password\":\""+document.getElementById("pass").value+"\"}"
+		console.log("mein string "+json);
+		$.ajax( { 
+				type: 'POST',
+				url: 'ajax_savejson.cgi',
+				contentType: 'text/plain; charset=UTF-8',
+				dataType: 'json',
+				data: json
+		} ).done(function(){
+			alert("<TMPL_VAR TEXT.SAVE_SUCCESSFUL>");
+		}).fail(function(){
+			alert("<TMPL_VAR TEXT.SAVE_FAILED>");
+		});
+	});
+</script>
 
