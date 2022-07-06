@@ -126,6 +126,13 @@ sub getCurrentState(){
 	}
 }
 
+sub resetToken(){
+	$cfg->{token} = $fromjson->{'token'};
+	$jsonobj->write();
+	LOGERR "Reset Token";
+	eval { getToken() };
+}
+
 sub received 
 {
 	my ($topic, $message) = @_;
@@ -143,6 +150,7 @@ sub received
 		eval { getCurrentState() };
 	}else{
 		LOGERR "Set attribute request was not successful $response->status_line";
+		eval { resetToken() };
 	}
 }
 
